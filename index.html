@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coffee Log</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="bean">☕</span>
+      <div>
+        <h1>Coffee Log</h1>
+        <p class="tagline">Every bag I've bought &amp; brewed</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button id="addBtn" class="btn btn-primary">+ Add coffee</button>
+      <div class="menu">
+        <button id="menuBtn" class="btn btn-ghost" aria-label="More">⋯</button>
+        <div id="menuPanel" class="menu-panel" hidden>
+          <button id="exportBtn">⬇ Export backup (.json)</button>
+          <button id="importBtn">⬆ Import backup (.json)</button>
+          <button id="resetBtn" class="danger">↺ Reset to original PDF data</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="stats" id="stats"></section>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-view="log">Log</button>
+    <button class="tab" data-view="chart">By Country</button>
+    <button class="tab" data-view="roaster">By Roaster</button>
+    <button class="tab" data-view="profiles">Tasting Profiles</button>
+    <button class="tab" data-view="recos">Recommendations</button>
+  </nav>
+
+  <div id="logView">
+    <section class="controls">
+      <input id="search" class="search" type="search" placeholder="Search roaster, coffee, origin, tasting notes…" />
+      <select id="filterCountry" class="filter"></select>
+      <select id="filterProcess" class="filter"></select>
+    </section>
+
+    <section class="count-row">
+      <span id="resultCount"></span>
+      <span class="hint-inline">Click a column header to sort · click a row to edit</span>
+    </section>
+
+    <main class="table-wrap">
+      <table id="table">
+        <thead><tr id="headRow"></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </main>
+    <div id="empty" class="empty" hidden>No coffees match your search.</div>
+  </div>
+
+  <div id="chartView" hidden>
+    <div class="chart-head">
+      <h2 id="chartTitle">Coffees by country of origin</h2>
+      <div class="chart-filter">
+        <label for="chartYear">Year</label>
+        <select id="chartYear" class="filter"></select>
+      </div>
+      <span id="chartSub" class="hint-inline"></span>
+    </div>
+    <div id="chart" class="chart"></div>
+  </div>
+
+  <div id="roasterView" hidden>
+    <div class="chart-head">
+      <h2 id="roasterTitle">Coffees by roaster</h2>
+      <span id="roasterSub" class="hint-inline"></span>
+    </div>
+    <div id="roasterChart" class="chart"></div>
+  </div>
+
+  <div id="profilesView" hidden>
+    <div class="chart-head">
+      <h2 id="profilesTitle">Your flavour wheel</h2>
+      <div class="segmented" id="originToggle" role="group" aria-label="Filter by coffee type">
+        <button class="seg active" data-origin="all">All</button>
+        <button class="seg" data-origin="single">Single origin</button>
+        <button class="seg" data-origin="blend">Blends</button>
+      </div>
+      <span id="profilesSub" class="hint-inline"></span>
+    </div>
+    <div class="profiles-wrap">
+      <figure class="wheel-figure">
+        <div id="wheel" class="wheel"></div>
+        <figcaption id="wheelCaption" class="wheel-caption"></figcaption>
+      </figure>
+      <div class="profiles-side">
+        <div class="profiles-side-head">
+          <h3 id="notesTitle">Most-logged notes</h3>
+          <button id="clearFlavor" class="btn btn-ghost" hidden>← All families</button>
+        </div>
+        <div id="noteBars" class="note-bars"></div>
+        <p id="bodyAside" class="profiles-aside"></p>
+      </div>
+    </div>
+  </div>
+
+  <div id="recosView" hidden>
+    <div class="chart-head">
+      <h2>Recommendations for you</h2>
+    </div>
+    <div class="reco-bar">
+      <button id="checkStockBtn" class="btn btn-primary">☕ Recommend 4 coffees for me</button>
+      <span id="recoStatus" class="hint-inline"></span>
+    </div>
+    <div id="liveRecos" class="reco-grid"></div>
+  </div>
+
+  <!-- Add/Edit modal -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2 id="modalTitle">Add coffee</h2>
+        <button id="modalClose" class="btn btn-ghost" aria-label="Close">✕</button>
+      </div>
+      <form id="coffeeForm" class="form">
+        <div class="url-fetch">
+          <label>Paste a link to auto-fill <span class="hint">(roaster / shop product page)</span>
+            <div class="url-fetch-row">
+              <input id="fetchUrl" type="url" placeholder="https://roaster.com/products/…" />
+              <button type="button" id="fetchBtn" class="btn btn-ghost">Fetch details</button>
+            </div>
+          </label>
+          <div id="fetchStatus" class="fetch-status" hidden></div>
+        </div>
+        <div class="grid">
+          <label>Date <span class="hint">(e.g. 5/2026)</span>
+            <input name="date" required placeholder="M/YYYY" />
+          </label>
+          <label>Roaster
+            <input name="roaster" list="roasters" required />
+          </label>
+          <label>Roaster City
+            <input name="city" placeholder="City, ST" />
+          </label>
+          <label>Coffee Name
+            <input name="coffee" />
+          </label>
+          <label class="span2">Farm / Region / Producer
+            <input name="farm" />
+          </label>
+          <label>Country of Origin
+            <input name="country" list="countries" />
+          </label>
+          <label>Variety
+            <input name="variety" placeholder="e.g. Caturra, Gesha" />
+          </label>
+          <label>Process
+            <input name="process" list="processes" placeholder="Washed, Natural…" />
+          </label>
+          <label>Bought From
+            <input name="bought_from" />
+          </label>
+          <label class="span2">Tasting Notes
+            <input name="tasting_notes" placeholder="Comma-separated" />
+          </label>
+          <label>From Who?
+            <input name="from_who" placeholder="Gift / recommended by" />
+          </label>
+          <label class="span2">Notes
+            <input name="notes" placeholder="Brew recipe, ratings, anything" />
+          </label>
+        </div>
+        <input type="hidden" name="id" />
+        <div class="modal-foot">
+          <button type="button" id="deleteBtn" class="btn btn-danger" hidden>Delete</button>
+          <button type="button" id="duplicateBtn" class="btn btn-ghost" hidden>⧉ Duplicate</button>
+          <span class="spacer"></span>
+          <button type="button" id="cancelBtn" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <datalist id="roasters"></datalist>
+  <datalist id="countries"></datalist>
+  <datalist id="processes"></datalist>
+  <input type="file" id="importFile" accept="application/json,.json" hidden />
+
+  <footer class="footer">
+    <span id="storeNote"></span>
+  </footer>
+
+  <script>window.COFFEELOG_PUBLIC = true;</script>
+  <script src="data.js"></script>
+  <script src="flavors.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
