@@ -1,8 +1,11 @@
 /* Coffee Log — client-side app.
    Data lives in localStorage (your working copy), seeded once from data.js.
+   When run through serve.py, every change is also saved to coffees.json, and
+   on startup whichever of the browser copy / file is newer wins.
    Use Export to save a backup file; Import to restore one. */
 
 const STORE_KEY = 'coffeelog.v2'; // bumped when the clean HTML export replaced the PDF import
+const SAVED_AT_KEY = 'coffeelog.savedAt'; // when the browser copy last changed (0 = untouched seed)
 // read-only published build (see build_public.py): no editing, no recos,
 // no private columns, and no dependence on serve.py
 const PUBLIC = !!window.COFFEELOG_PUBLIC;
@@ -21,16 +24,57 @@ function load() {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) return JSON.parse(raw);
   } catch (e) { console.warn('load failed', e); }
-  // first run: seed from the PDF import
+  // first run: seed from data.js — savedAt 0 so a coffees.json always beats it
   const seed = (window.SEED_COFFEES || []).map(c => ({ ...c }));
-  persist(seed);
+  persist(seed, { savedAt: 0, toFile: false });
   return seed;
 }
-function persist(list) {
+function persist(list, { savedAt = Date.now(), toFile = true } = {}) {
   coffees = list;
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(list)); }
-  catch (e) { alert('Could not save to this browser: ' + e.message); }
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(list));
+    localStorage.setItem(SAVED_AT_KEY, String(savedAt));
+  } catch (e) { alert('Could not save to this browser: ' + e.message); }
+  if (toFile) saveToFile(list, savedAt);
   updateStoreNote();
+}
+function localSavedAt() {
+  try { return +localStorage.getItem(SAVED_AT_KEY) || 0; } catch (_) { return 0; }
+}
+
+/* ---------- coffees.json (via serve.py) ---------- */
+let fileSync = 'off'; // 'off' (no serve.py) | 'ok' | 'error'
+async function saveToFile(list, savedAt) {
+  if (PUBLIC || fileSync === 'off') return;
+  try {
+    const r = await fetch('/save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ savedAt, coffees: list }),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    fileSync = 'ok';
+  } catch (e) { console.warn('save to coffees.json failed', e); fileSync = 'error'; }
+  updateStoreNote();
+}
+// reconcile with coffees.json on startup; returns true if the list changed
+async function syncWithFile() {
+  if (PUBLIC || location.protocol === 'file:') return false;
+  let file = null;
+  try {
+    // probe serve.py itself — a plain static host has no /save to write to
+    const probe = await fetch('/save', { method: 'POST', body: '' });
+    if (probe.status !== 413) return false;
+    const r = await fetch('coffees.json', { cache: 'no-store' });
+    if (r.ok) file = await r.json();
+  } catch (_) { return false; }
+  fileSync = 'ok';
+  if (file && Array.isArray(file.coffees) && (+file.savedAt || 0) >= localSavedAt()) {
+    persist(file.coffees, { savedAt: +file.savedAt || 0, toFile: false });
+    return true;
+  }
+  saveToFile(coffees, localSavedAt() || Date.now()); // browser copy is newer (or no file yet)
+  updateStoreNote();
+  return false;
 }
 function nextId() {
   return coffees.reduce((m, c) => Math.max(m, c.id || 0), 0) + 1;
@@ -938,8 +982,10 @@ function resetData() {
 
 function updateStoreNote() {
   if (PUBLIC) { el('storeNote').textContent = `${coffees.length} coffees`; return; }
-  el('storeNote').textContent =
-    `${coffees.length} coffees saved in this browser · export a backup to keep them safe`;
+  el('storeNote').textContent = {
+    ok:    `${coffees.length} coffees · saved to coffees.json`,
+    error: `${coffees.length} coffees saved in this browser · couldn't write coffees.json — is serve.py running?`,
+  }[fileSync] || `${coffees.length} coffees saved in this browser · export a backup to keep them safe`;
 }
 
 /* ---------- auto-fill from a pasted URL ----------
@@ -1485,3 +1531,4 @@ refreshAux();
 render();
 switchView(location.hash.slice(1));
 updateStoreNote();
+syncWithFile().then(changed => { if (changed) { refreshAux(); render(); } });
