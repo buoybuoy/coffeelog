@@ -214,7 +214,7 @@ function refreshAux() {
   if (el('profilesView') && !el('profilesView').hidden) renderProfiles();
 }
 
-const VIEWS = ['log', 'chart', 'roaster', 'profiles', 'recos'].filter(v => !PUBLIC || v !== 'recos');
+const VIEWS = ['log', 'chart', 'roaster', 'variety', 'profiles', 'recos'].filter(v => !PUBLIC || v !== 'recos');
 function switchView(view) {
   if (!VIEWS.includes(view)) view = 'log';
   document.querySelectorAll('.tab').forEach(t =>
@@ -222,6 +222,7 @@ function switchView(view) {
   el('logView').hidden = view !== 'log';
   el('chartView').hidden = view !== 'chart';
   el('roasterView').hidden = view !== 'roaster';
+  el('varietyView').hidden = view !== 'variety';
   el('profilesView').hidden = view !== 'profiles';
   if (!PUBLIC) el('recosView').hidden = view !== 'recos';
   if (view === 'profiles') renderProfiles();
@@ -236,6 +237,7 @@ function renderChart() {
     'Coffees by country of origin' + (yr ? ` — ${yr}` : '');
   renderBars('country', 'chart', 'chartSub', 'origin', byYear);
   renderBars('roaster', 'roasterChart', 'roasterSub', 'roaster', coffees);
+  renderVarieties();
 }
 // tally coffees by a field and draw ranked bars into `chartId`
 function renderBars(key, chartId, subId, unit, list = coffees) {
@@ -244,6 +246,11 @@ function renderBars(key, chartId, subId, unit, list = coffees) {
     const k = c[key] && c[key].trim() ? c[key].trim() : 'Unknown';
     counts[k] = (counts[k] || 0) + 1;
   }
+  const rows = drawBars(chartId, counts);
+  el(subId).textContent =
+    `${list.length} coffees across ${rows.length} ${unit}${rows.length === 1 ? '' : 's'}`;
+}
+function drawBars(chartId, counts) {
   const rows = Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   const max = rows.length ? rows[0][1] : 1;
   el(chartId).innerHTML = rows.map(([name, n]) => `
@@ -254,8 +261,52 @@ function renderBars(key, chartId, subId, unit, list = coffees) {
         <span class="bar-count">${n}</span>
       </div>
     </div>`).join('');
-  el(subId).textContent =
-    `${list.length} coffees across ${rows.length} ${unit}${rows.length === 1 ? '' : 's'}`;
+  return rows;
+}
+
+/* ---------- by variety ----------
+   The variety field is free text, often listing several ("SL28, SL34 and
+   Ruiru 11"), so split it, fold spelling variants together, and count a
+   coffee once toward each variety it contains. Display-only: data untouched. */
+const VARIETY_ALIASES = {
+  'gesha': 'Geisha', 'catuaí': 'Catuai', 'red catuaí': 'Red Catuai', 'catucaí': 'Catucai', 'yellow catucaí': 'Yellow Catucai',
+  'pacamera': 'Pacamara', 'paraneima': 'Parainema', 'yellow catarrh': 'Yellow Caturra',
+  'sl 28': 'SL28', 'sl-28': 'SL28', 'sl 34': 'SL34', 'sl-34': 'SL34',
+  'ruiru': 'Ruiru 11', 'ruiru ii': 'Ruiru 11', 'ruriu 11': 'Ruiru 11',
+  'karume': 'Kurume', 'welisho': 'Wolisho', 'welicho': 'Wolisho',
+  'mund novo': 'Mundo Novo', 'mondo novo': 'Mundo Novo',
+  'yellow': 'Yellow Bourbon', // from "Yellow + Red Bourbon"
+  'heirloom varieties': 'Heirloom', 'mixed heirloom': 'Heirloom', 'ethiopian landrace': 'Heirloom',
+  'local landraces': 'Heirloom', 'regional landrace varietals': 'Heirloom',
+  'mixed': 'Mixed / various', 'various': 'Mixed / various',
+  'blend': 'Mixed / various', 'field blend': 'Mixed / various',
+  // blends that list origin countries instead of varieties
+  'brazil': 'Mixed / various', 'ethiopia': 'Mixed / various', 'papua new guinea': 'Mixed / various',
+};
+function varietiesOf(c) {
+  return String(c.variety || '')
+    .split(/\s*(?:,|\/|&|\+|\band\b)\s*/i)
+    .map(v => v.replace(/[:\-]+$/, '').trim())
+    .filter(v => v && !/^(-+|variety)$/i.test(v))
+    .map(v => VARIETY_ALIASES[v.toLowerCase()] || v)
+    .map(v => v === v.toLowerCase() ? v[0].toUpperCase() + v.slice(1) : v);
+}
+function renderVarieties() {
+  const counts = {}, spelling = {};
+  let listed = 0;
+  for (const c of coffees) {
+    const vs = varietiesOf(c);
+    if (vs.length) listed++;
+    // case-insensitive merge; show the first spelling seen
+    for (const key of new Set(vs.map(v => v.toLowerCase()))) {
+      spelling[key] = spelling[key] || vs.find(v => v.toLowerCase() === key);
+      counts[spelling[key]] = (counts[spelling[key]] || 0) + 1;
+    }
+  }
+  const rows = drawBars('varietyChart', counts);
+  el('varietySub').textContent =
+    `${listed} coffees across ${rows.length} varieties · coffees listing several count toward each` +
+    (coffees.length > listed ? ` · ${coffees.length - listed} without a variety` : '');
 }
 
 /* ---------- tasting profiles ----------
