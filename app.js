@@ -305,8 +305,8 @@ function renderVarieties() {
   }
   const rows = drawBars('varietyChart', counts);
   el('varietySub').textContent =
-    `${listed} coffees across ${rows.length} varieties · coffees listing several count toward each` +
-    (coffees.length > listed ? ` · ${coffees.length - listed} without a variety` : '');
+    `${listed} coffees across ${rows.length} varietals · coffees listing several count toward each` +
+    (coffees.length > listed ? ` · ${coffees.length - listed} without a varietal` : '');
 }
 
 /* ---------- tasting profiles ----------
