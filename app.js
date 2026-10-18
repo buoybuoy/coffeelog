@@ -105,7 +105,7 @@ const COLUMNS = [
   { key: 'coffee',        label: 'Coffee Name' },
   { key: 'farm',          label: 'Farm / Region / Producer' },
   { key: 'country',       label: 'Country' },
-  { key: 'variety',       label: 'Variety' },
+  { key: 'variety',       label: 'Varietal' },
   { key: 'process',       label: 'Process' },
   { key: 'tasting_notes', label: 'Tasting Notes' },
   { key: 'bought_from',   label: 'Bought From' },
